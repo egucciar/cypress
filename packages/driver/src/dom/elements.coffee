@@ -2,6 +2,7 @@ _ = require("lodash")
 $ = require("jquery")
 $jquery = require("./jquery")
 $window = require("./window")
+$shadow = require("./shadow")
 $document = require("./document")
 $utils = require("../cypress/utils")
 
@@ -247,6 +248,11 @@ isAttached = ($el) ->
   if els.length is 0
     return false
 
+  ## TODO: Find out how to tell if shadowChildren
+  ## are attached. Temporarily assume they are.
+  if $shadow.$isShadowChild($el)
+    return true;
+
   ## get the document from the first element
   doc = $document.getDocumentFromElement(els[0])
 
@@ -339,7 +345,7 @@ getFirstFixedOrStickyPositionParent = ($el) ->
     return $el
 
   ## else recursively continue to walk up the parent node chain
-  getFirstFixedOrStickyPositionParent($el.parent())
+  getFirstFixedOrStickyPositionParent($shadow.$getTrueParent($el))
 
 getFirstStickyPositionParent = ($el) ->
   ## return null if we're at body/html
@@ -351,7 +357,7 @@ getFirstStickyPositionParent = ($el) ->
     return $el
 
   ## else recursively continue to walk up the parent node chain
-  getFirstStickyPositionParent($el.parent())
+  getFirstStickyPositionParent($shadow.$getTrueParent($el))
 
 getFirstScrollableParent = ($el) ->
   # doc = $el.prop("ownerDocument")
@@ -362,7 +368,7 @@ getFirstScrollableParent = ($el) ->
   # scrollingElement = doc.scrollingElement
 
   search = ($el) ->
-    $parent = $el.parent()
+    $parent = $shadow.$getTrueParent($el);
 
     ## we have no more parents
     if not ($parent or $parent.length)

@@ -3,6 +3,7 @@ $ = require("jquery")
 Promise = require("bluebird")
 
 $dom = require("../dom")
+$shadow = require('../dom/shadow')
 $utils = require("../cypress/utils")
 
 delay = 50
@@ -38,6 +39,11 @@ getPositionFromArguments = (positionOrX, y, options) ->
 
 ensureElIsNotCovered = (cy, win, $el, fromViewport, options, log, onScroll) ->
   $elAtCoords = null
+
+  ## TODO - Calculate coordinates of shadowChildren
+  ## TEMP - Children are return despite coordinates
+  if ($shadow.$isShadowChild($el))
+    return $el;
 
   getElementAtPointFromViewport = (fromViewport) ->
     ## get the element at point from the viewport based

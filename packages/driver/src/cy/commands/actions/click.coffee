@@ -6,6 +6,7 @@ $Mouse = require("../../../cypress/mouse")
 
 $dom = require("../../../dom")
 $utils = require("../../../cypress/utils")
+$shadow = require("../../../dom/shadow")
 $elements = require("../../../dom/elements")
 $selection = require("../../../dom/selection")
 $actionability = require("../../actionability")
@@ -69,13 +70,13 @@ module.exports = (Commands, Cypress, cy, state, config) ->
         getFirstFocusableEl = ($el) ->
           return $el if $dom.isFocusable($el)
 
-          parent = $el.parent()
+          parent = $shadow.$getTrueParent($el);
 
           ## if we have no parent then just return
           ## the window since that can receive focus
           return $(win) if not parent.length
 
-          getFirstFocusableEl($el.parent())
+          getFirstFocusableEl(parent)
 
         afterMouseDown = ($elToClick, coords) ->
           ## we need to use both of these

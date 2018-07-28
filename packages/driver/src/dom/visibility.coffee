@@ -1,6 +1,7 @@
 _ = require("lodash")
 
 $jquery = require("./jquery")
+$shadow = require('./shadow')
 $document = require("./document")
 $elements = require("./elements")
 $coordinates = require("./coordinates")
@@ -133,7 +134,7 @@ elIsNotElementFromPoint = ($el) ->
   return not $elements.isDescendent($el, $elAtPoint)
 
 elIsOutOfBoundsOfAncestorsOverflow = ($el, $ancestor) ->
-  $ancestor ?= $el.parent()
+  $ancestor ?= $shadow.$getTrueParent($el);
 
   ## no ancestor, not out of bounds!
   return false if not $ancestor
@@ -162,7 +163,7 @@ elIsOutOfBoundsOfAncestorsOverflow = ($el, $ancestor) ->
       (elProps.fromWindow.top + elProps.height) < ancestorProps.fromWindow.top
     )
 
-  elIsOutOfBoundsOfAncestorsOverflow($el, $ancestor.parent())
+  elIsOutOfBoundsOfAncestorsOverflow($el, $shadow.$getTrueParent($ancestor))
 
 elIsHiddenByAncestors = ($el, $origEl) ->
   ## store the original $el
@@ -174,7 +175,7 @@ elIsHiddenByAncestors = ($el, $origEl) ->
   ## is effectively hidden
   ## -----UNLESS------
   ## the parent or a descendent has position: absolute|fixed
-  $parent = $el.parent()
+  $parent = $shadow.$getTrueParent($el);
 
   ## stop if we've reached the body or html
   ## in case there is no body
@@ -199,7 +200,7 @@ parentHasNoOffsetWidthOrHeightAndOverflowHidden = ($el) ->
     return $el
   else
     ## continue walking
-    return parentHasNoOffsetWidthOrHeightAndOverflowHidden($el.parent())
+    return parentHasNoOffsetWidthOrHeightAndOverflowHidden($shadow.getTrueParent($el))
 
 parentHasDisplayNone = ($el) ->
   ## if we have no $el or we've walked all the way up to document
@@ -211,7 +212,7 @@ parentHasDisplayNone = ($el) ->
     return $el
   else
     ## continue walking
-    return parentHasDisplayNone($el.parent())
+    return parentHasDisplayNone($shadow.$getTrueParent($el))
 
 parentHasVisibilityNone = ($el) ->
   ## if we've walked all the way up to document then return false
@@ -222,7 +223,7 @@ parentHasVisibilityNone = ($el) ->
     return $el
   else
     ## continue walking
-    return parentHasVisibilityNone($el.parent())
+    return parentHasVisibilityNone($shadow.$getTrueParent($el))
 
 getReasonIsHidden = ($el) ->
   ## TODO: need to add in the reason an element
