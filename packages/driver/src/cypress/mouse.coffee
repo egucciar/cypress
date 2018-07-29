@@ -20,6 +20,7 @@ module.exports = {
       clientY: fromViewport.y
       buttons: 1
       detail: 1
+      composed: true
     })
 
     mdownEvt = new window.MouseEvent "mousedown", mdownEvtProps
@@ -55,6 +56,7 @@ module.exports = {
       clientY: fromViewport.y
       buttons: 0
       detail: 1
+      composed: true
     })
 
     mupEvt = new MouseEvent "mouseup", mupEvtProps
@@ -90,6 +92,7 @@ module.exports = {
       clientY: fromViewport.y
       buttons: 0
       detail: 1
+      composed: true
     })
 
     clickEvt = new MouseEvent "click", clickEvtProps
