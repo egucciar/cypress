@@ -380,6 +380,223 @@ module.exports = (Commands, Cypress, cy, state, config) ->
         ## always restore contains in case
         ## we used a regexp!
         restoreContains()
+  
+    shadowGet: (subject, selector, options = {}) ->
+      ctx = @
+
+      console.log('withinSubject', subject);
+
+      _.defaults(options, {
+        retry: true
+        withinSubject: subject || cy.$$('body')
+        log: true
+        command: null
+        verify: true
+      })
+
+      consoleProps = {}
+
+      start = (aliasType) ->
+        return if options.log is false
+
+        options._log ?= Cypress.log
+          message: selector
+          referencesAlias: aliasObj?.alias
+          aliasType: aliasType
+          consoleProps: -> consoleProps
+
+      log = (value, aliasType = "dom") ->
+        return if options.log is false
+
+        start(aliasType) if not _.isObject(options._log)
+
+        obj = {}
+
+        if aliasType is "dom"
+          _.extend(obj, {
+            $el: value
+            numRetries: options._retries
+          })
+
+        obj.consoleProps = ->
+          key = if aliasObj then "Alias" else "Selector"
+          consoleProps[key] = selector
+
+          switch aliasType
+            when "dom"
+              _.extend(consoleProps, {
+                Yielded: $dom.getElements(value)
+                Elements: value?.length
+              })
+
+            when "primitive"
+              _.extend(consoleProps, {
+                Yielded: value
+              })
+
+            when "route"
+              _.extend(consoleProps, {
+                Yielded: value
+              })
+
+          return consoleProps
+
+        options._log.set(obj)
+
+      ## we always want to strip everything after the first '.'
+      ## since we support alias propertys like '1' or 'all'
+      if aliasObj = cy.getAlias(selector.split(".")[0])
+        {subject, alias, command} = aliasObj
+
+        return do resolveAlias = ->
+          switch
+            ## if this is a DOM element
+            when $dom.isElement(subject)
+              replayFrom = false
+
+              replay = ->
+                cy.replayCommandsFrom(command)
+
+                ## its important to return undefined
+                ## here else we trick cypress into thinking
+                ## we have a promise violation
+                return undefined
+
+              ## if we're missing any element
+              ## within our subject then filter out
+              ## anything not currently in the DOM
+              if $dom.isDetached(subject)
+                subject = subject.filter (index, el) ->
+                  $dom.isAttached(el)
+
+                ## if we have nothing left
+                ## just go replay the commands
+                if not subject.length
+                  return replay()
+
+              log(subject)
+
+              return cy.verifyUpcomingAssertions(subject, options, {
+                onFail: (err) ->
+                  ## if we are failing because our aliased elements
+                  ## are less than what is expected then we know we
+                  ## need to requery for them and can thus replay
+                  ## the commands leading up to the alias
+                  if err.type is "length" and err.actual < err.expected
+                    replayFrom = true
+                onRetry: ->
+                  if replayFrom
+                    replay()
+                  else
+                    resolveAlias()
+              })
+
+            ## if this is a route command
+            when command.get("name") is "route"
+              alias = _.compact([alias, selector.split(".")[1]]).join(".")
+              requests = cy.getRequestsByAlias(alias) ? null
+              log(requests, "route")
+              return requests
+            else
+              ## log as primitive
+              log(subject, "primitive")
+
+              do verifyAssertions = =>
+                cy.verifyUpcomingAssertions(subject, options, {
+                  ensureExistenceFor: false
+                  onRetry: verifyAssertions
+                })
+
+      start("dom")
+
+      setEl = ($el) ->
+        return if options.log is false
+
+        consoleProps.Yielded = $dom.getElements($el)
+        consoleProps.Elements = $el?.length
+
+        options._log.set({$el: $el})
+
+      getElements = ->
+        ## attempt to query for the elements by withinSubject context
+        ## and catch any sizzle errors!
+        try
+          $el = queryShadowChildren(options.withinSubject, selector)
+        catch e
+          e.onFail = -> options._log.error(e)
+          throw e
+
+        ## if that didnt find anything and we have a within subject
+        ## and we have been explictly told to filter
+        ## then just attempt to filter out elements from our within subject
+        if not $el.length and options.withinSubject and options.filter
+          filtered = options.withinSubject.filter(selector)
+
+          ## reset $el if this found anything
+          $el = filtered if filtered.length
+
+        ## store the $el now in case we fail
+        setEl($el)
+
+        ## allow retry to be a function which we ensure
+        ## returns truthy before returning its
+        if _.isFunction(options.onRetry)
+          if ret = options.onRetry.call(ctx, $el)
+            log($el)
+            return ret
+        else
+          log($el)
+          return $el
+
+      isShadowElement = ($el) ->
+        el = $el.get(0);
+        return el.shadowRoot &&
+        el.shadowRoot.childNodes &&
+        el.shadowRoot.childNodes.length > 0
+
+      queryShadowChildren = (node, query) ->
+        console.log('[shadow-get] querying', node, query);
+        allShadowChildren = getAllShadowChildren([node]);
+        console.log('all', allShadowChildren);
+        shadowRoots = getAllShadowChildren([node]).filter(isShadowElement);
+        console.log('shadowroots', shadowRoots);
+        matchedEls = shadowRoots.reduce(
+          (matched, el) -> [matched..., $(el.get(0).shadowRoot).find(query)...],
+          []
+        );
+        return matchedEls;
+
+      getAllShadowChildren = (elems) -> 
+        ret = _.reduce elems, (acc, el) ->
+          console.log('El', el);
+          acc.push(el)
+          nodesToReduce = []
+          if (el.childNodes)
+            nodesToReduce = nodesToReduce.concat([el.childNodes...])
+          
+          if (el.shadowRoot) 
+            nodesToReduce = nodesToReduce.concat([el.shadowRoot.childNodes...])
+          
+          if (el.tagName == 'SLOT')
+            nodesToReduce = nodesToReduce.concat([el.assignedNodes()...])
+        
+          return acc.concat(getAllShadowChildren(nodesToReduce))
+        , []
+        console.log('Ret', ret);
+        return ret;
+        # return elems.reduce((acc, el) -> {
+        #   acc.push(el);
+        # }, [])
+        
+
+      do resolveElements = ->
+        Promise.try(getElements).then ($el) ->
+          if options.verify is false
+            return $el
+
+          cy.verifyUpcomingAssertions($el, options, {
+            onRetry: resolveElements
+          })  
   })
 
   Commands.addAll({ prevSubject: "element" }, {
