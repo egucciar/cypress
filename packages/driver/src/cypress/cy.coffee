@@ -86,6 +86,57 @@ create = (specWindow, Cypress, Cookies, state, config, log) ->
     context ?= state("document")
     new $.fn.init(selector, context)
 
+  $$shadow = (selector, context) ->
+    # selector = within shadowRoot
+    # context = container with shadowRoot
+    # TODO: Deep Nested?
+    found = queryShadowChildren($$(context), selector);
+    console.log('context', context);
+    new $.fn.init(found);
+
+  isShadowElement = ($el) ->
+    if (!$el)
+      return false
+    el = if $el.get then $el.get(0) else $el
+    return el.shadowRoot &&
+    el.shadowRoot.childNodes &&
+    el.shadowRoot.childNodes.length > 0
+
+  queryShadowChildren = (node, query) ->
+    console.log('[shadow-get] querying', node, query);
+    allShadowChildren = getAllShadowChildren([node]);
+    console.log('all', allShadowChildren);
+    shadowRoots = getAllShadowChildren([node]).filter(isShadowElement);
+    console.log('shadowroots', shadowRoots);
+    matchedEls = shadowRoots.reduce(
+      (matched, el) -> [matched..., $(el.shadowRoot).find(query)...],
+      []
+    );
+    return matchedEls;
+
+  getAllShadowChildren = (elems) -> 
+    ret = _.reduce elems, (acc, $el) ->
+      el = if $el.get then $el.get(0) else $el
+      acc.push(el)
+      nodesToReduce = []
+      if (!el)
+        return acc;
+      if (el.childNodes)
+        nodesToReduce = nodesToReduce.concat([el.childNodes...])
+      
+      if (el.shadowRoot) 
+        nodesToReduce = nodesToReduce.concat([el.shadowRoot.childNodes...])
+      
+      if (el.tagName == 'SLOT')
+        nodesToReduce = nodesToReduce.concat([el.assignedNodes()...])
+    
+      return acc.concat(getAllShadowChildren(nodesToReduce))
+    , []
+    return ret;
+    # return elems.reduce((acc, el) -> {
+    #   acc.push(el);
+    # }, [])
+
   queue = $CommandQueue.create()
 
   timeouts = $Timeouts.create(state)
@@ -595,6 +646,8 @@ create = (specWindow, Cypress, Cookies, state, config, log) ->
 
     ## synchrounous querying
     $$
+
+    $$shadow
 
     state
 
